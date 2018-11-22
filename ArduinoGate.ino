@@ -60,7 +60,7 @@ Adafruit_VL53L0X sens1 = Adafruit_VL53L0X();
 void setup()
 {
   delay(2000);
-  Serial.println("Running this shit");
+  Serial.println("Run this shit");
   /****** RESET ******/
   pinMode(PINtoRESET, INPUT); 
   digitalWrite(PINtoRESET, LOW);
@@ -118,7 +118,7 @@ void setup()
   client.loop();
 
   counter=millis();
-  Serial.println("finish setup");
+  Serial.println("Finish setup");
 }
 
 void loop()
