@@ -3,8 +3,11 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 #include "Adafruit_VL53L0X.h"
-#define ID "SG2"
+
+#define GATE_ID "SG1"
+
 /****** setup WiFi ******/
+
 char ssid[] = "wlan_saltuaria";
 char pass[] = "antlabpolitecnicomilano";
 int status = WL_IDLE_STATUS;     
@@ -12,23 +15,21 @@ WiFiClient ClientWiFi;
 PubSubClient client(ClientWiFi);
 
 /****** setup MQTT ******/
-const char* MQTT_SERVER = "10.79.1.176";
-const char* TOPIC = "smartgate/sg2/mls/multiple_tof";
-const char* TEST_TOPIC = "smartgate/sg2/mls/multiple_tof/test";
+const char* MQTT_SERVER = "34.222.27.8";
+const char* TOPIC = "smartgate/sg1/data";
+const char* TEST_TOPIC = "smartgate/sg1/debug";
 
 /****** setup temporal parameter ******/
 const int MILLISECOND_PER_PACKET = 1000;
-const int MIN_MOVEMENT = 500;
+const int MIN_MOVEMENT = 400;
 const int DURATA = 1000;
 
 /****** PIN MKR1000 ******/
 const int PINtoRESET = 1;
-const int ENTRY_LED = 2;
-const int EXIT_LED = 3;
-const int SENSOR_0 = 4;
-const int SENSOR_1 = 5;
-
-
+const int ENTRY_LED = 3; //RED    //2
+const int EXIT_LED = 2; //GREEN   //3 
+const int SENSOR_0 = 6;           //6
+const int SENSOR_1 = 7;           //7
 
 /****** setup JSON array ******/
 char JSONmessagebuffer[10000];
@@ -42,7 +43,7 @@ int sample = 0;
 int sequenceNumber = 0;
 int secondi = 1;
 long int counter = 0;
-
+int len =0;
 
 /****** logic of the counter ******/
 int new_ts_0 = 0;
@@ -52,15 +53,16 @@ bool flag_1 = false;
 int timer_entrata = 0;
 int timer_uscita = 0;
 
-
 /****** ToF object ******/
 Adafruit_VL53L0X sens0 = Adafruit_VL53L0X();
 Adafruit_VL53L0X sens1 = Adafruit_VL53L0X();
 
 void setup()
 {
-  delay(2000);
-  Serial.println("Run this shit");
+  Serial.begin(115200);
+  delay(1000);
+  Serial.println("Sto avviando...");
+  Serial.println("Sto avviando...");
   /****** RESET ******/
   pinMode(PINtoRESET, INPUT); 
   digitalWrite(PINtoRESET, LOW);
@@ -69,8 +71,6 @@ void setup()
   pinMode(ENTRY_LED, OUTPUT);
   pinMode(EXIT_LED, OUTPUT);
 
-
-  
   /****** TOF ******/
   digitalWrite(SENSOR_0, LOW);
   digitalWrite(SENSOR_1, LOW);
@@ -89,7 +89,7 @@ void setup()
   digitalWrite(SENSOR_1, HIGH);
   //end initialization multiple sensor
 
-  
+  Serial.println(">>>Test ToF");  
   //Test SENSOR 0
   digitalWrite(SENSOR_0, HIGH);
   digitalWrite(SENSOR_1, LOW);
@@ -102,23 +102,38 @@ void setup()
   digitalWrite(SENSOR_0, HIGH);
   digitalWrite(SENSOR_1, HIGH);
   if (!sens1.begin(0x31)) {
-    Serial.println(F("Failed to boot VL53L0X - 1 "));
-    while(1);
+    while(1){
+          Serial.println(F("Failed to boot VL53L0X - 1 "));
+}
+  Serial.println(">>>ToF OK");
+  digitalWrite(ENTRY_LED, HIGH);
+  delay(5000); 
+  digitalWrite(ENTRY_LED, LOW);
   }
     
-
   /****** WIFI ******/
+  Serial.println(">>>Test WiFi");
   while ( status != WL_CONNECTED) 
   {status = WiFi.begin(ssid, pass);}
-
+  Serial.println(">>>WiFi OK");
+  digitalWrite(EXIT_LED, HIGH);
+  delay(5000); 
+  digitalWrite(EXIT_LED, LOW);
+  
   /****** MQTT ******/
+  Serial.println(">>>Test MQTT");
   client.setServer(MQTT_SERVER, 1883);  
   if(!client.connected())
   {reconnect();}
   client.loop();
-
+  Serial.println(">>>MQTT OK");
+  digitalWrite(ENTRY_LED, HIGH);
+  digitalWrite(EXIT_LED, HIGH);
+  delay(5000); 
+  digitalWrite(ENTRY_LED, LOW);
+  digitalWrite(EXIT_LED, LOW);
+  
   counter=millis();
-  Serial.println("Finish setup");
 }
 
 void loop()
@@ -133,44 +148,30 @@ void loop()
   sens1.rangingTest(&measure1, false);
   long distance_side_1 = measure1.RangeMilliMeter;
 
-  //Check error - reset side 0 
-  if (distance_side_0 < -1 or (distance_side_0 > 1500  and distance_side_0 < 7999))
-  {
-    
-    client.publish(TEST_TOPIC,"Reset - side 0");
-    /*** Debug reset message 
-    String pubString = String(distance_side_0);
-    char message_buff [] = "";
-    pubString.toCharArray(message_buff, pubString.length()+1); 
-    client.publish(TEST_TOPIC,message_buff);
-    ***/
-    delay(10);
-    pinMode(PINtoRESET, OUTPUT);   
-  }
-
-  //Check error - reset side 1
-  if (distance_side_1 < -1 or (distance_side_1 > 1500  and distance_side_1 < 7999))
-  {
-    client.publish(TEST_TOPIC,"Reset - side 1");
-    /*** Debug reset message 
-    String pubString_1 = String(distance_side_1);
-    char message_buff_1 [] = "";
-    pubString_1.toCharArray(message_buff_1, pubString_1.length()+1); 
-    client.publish(TEST_TOPIC,message_buff_1);
-    ***/
-    delay(10);
-    pinMode(PINtoRESET, OUTPUT);
-  }
-
-  //Correct length error
-  if (distance_side_0 > 1000)
+  if(distance_side_0 > 1100)
   {
     distance_side_0 = 8190;
   }
   
-  if (distance_side_1 > 1000)
+  if(distance_side_1 > 1100)
   {
     distance_side_1 = 8190;
+  }
+
+  //Check error - reset side 0 
+  if (distance_side_0 < -1 or (distance_side_0 > 1300  and distance_side_0 < 7999))
+  {
+    client.publish(TEST_TOPIC,"Reset - side 0");
+    delay(10);
+    pinMode(PINtoRESET, OUTPUT);
+  }
+
+  //Check error - reset side 1
+  if (distance_side_1 < -1 or (distance_side_1 > 1300  and distance_side_1 < 7999))
+  {
+    client.publish(TEST_TOPIC,"Reset - side 1");
+    delay(10);
+    pinMode(PINtoRESET, OUTPUT);
   }
   //Plot multiple graph
   Serial.print(distance_side_0);
@@ -180,8 +181,8 @@ void loop()
   //save lengths in json arrays
   tof0.add(distance_side_0);
   tof1.add(distance_side_1);
-  
-  /****** Real Time analysis ******/
+
+ /****** Real Time analysis ******/
   if (distance_side_0 < 8000 and flag_0 == false)
   {
     new_ts_0 = millis();
@@ -207,7 +208,7 @@ void loop()
         flag_0 = false;
         flag_1 = false;
 
-        client.publish(TEST_TOPIC,"2,Entry");
+        client.publish(TEST_TOPIC,"1,Entry");
         digitalWrite(ENTRY_LED, HIGH);
         timer_entrata = millis();
       }
@@ -216,7 +217,7 @@ void loop()
         flag_0 = false;
         flag_1 = false;
 
-        client.publish(TEST_TOPIC,"2,Exit");
+        client.publish(TEST_TOPIC,"1,Exit");
         digitalWrite(EXIT_LED, HIGH);
         timer_uscita = millis();
       }
@@ -231,9 +232,9 @@ void loop()
     digitalWrite(EXIT_LED, LOW);
   }
   /****** End Real Time analysis ******/
-    
+     
   sample = sample+1;
-
+   
   /****** sending packet ******/
   if((millis()-counter)>secondi*MILLISECOND_PER_PACKET)
     {
@@ -247,16 +248,16 @@ void loop()
       client.loop();    
 
       root["SN"]=String(sequenceNumber);
-      root["ID"]=ID;
+      root["ID"]= GATE_ID;
       //sampling result
-      /*
+      
       Serial.print("\n#SN ");
       Serial.print(sequenceNumber);    
       Serial.print(" Campioni= ");
       Serial.print(sample);
       Serial.print(" istante= ");
       Serial.println(millis()-counter);
-      */
+      
            
       sample=0;
       secondi=secondi+1;
@@ -285,6 +286,7 @@ void reconnect()
     } 
     else 
     {
+      
       // Wait 5 seconds before retrying
       delay(5000);
     }
